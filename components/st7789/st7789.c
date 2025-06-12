@@ -20,7 +20,7 @@
 #define HOST_ID SPI3_HOST
 #endif
 
-#define SPI_DEFAULT_FREQUENCY SPI_MASTER_FREQ_20M; // 20MHz
+#define SPI_DEFAULT_FREQUENCY SPI_MASTER_FREQ_40M; // 20MHz
 
 static const int SPI_Command_Mode = 0;
 static const int SPI_Data_Mode = 1;

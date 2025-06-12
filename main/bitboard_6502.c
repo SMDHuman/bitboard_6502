@@ -116,7 +116,7 @@ void app_main(void)
     NULL, // Task parameters
     1, // Priority
     NULL, // Task handle
-    0 // Core ID (0 for core 0)
+    1 // Core ID (0 for core 0)
   );
   
   while(1) {
@@ -130,8 +130,8 @@ void app_main(void)
       continue; // Skip execution if break flag is set
     }
     step6502(); // Execute a single instruction
-    printf("PC: %04X, A: %02X, X: %02X, Y: %02X, SP: %02X, P: %02X\n",
-           pc, a, x, y, sp, status);
+    //printf("PC: %04X, A: %02X, X: %02X, Y: %02X, SP: %02X, P: %02X\n",
+    //     pc, a, x, y, sp, status);
     
     idisplay_numbers[2] = a; // Update display with accumulator value
     idisplay_numbers[3] = sp; // Update display with stack pointer value
@@ -145,7 +145,7 @@ void app_main(void)
     idisplay_numbers[14] = status & 0x04; // Update display with status register (I flag)
     idisplay_numbers[15] = status & 0x02; // Update display with status register (Z flag)
     idisplay_numbers[16] = status & 0x01; // Update display with status register (C flag)
-    vTaskDelay(pdMS_TO_TICKS(150)); // Adjust delay as needed
+    vTaskDelay(pdMS_TO_TICKS(50)); // Adjust delay as needed
   }
 }
 
