@@ -5,7 +5,6 @@
 #include "info_display.h"
 
 TFT_t dev;
-MCS6502ExecutionContext *cpu;
 FontxFile font[2];
 FontxFile font_small[2];
 
@@ -77,8 +76,9 @@ static void draw_info_text(TFT_t *dv, const char *text, uint16_t x, uint16_t y, 
 	lcdDrawString(dv, font, x*grid_size+5, y*grid_size + 1, buffer, theme_colors[color_i]);
 	return;
 }
+//-----------------------------------------------------------------------------
 // Draws the CPU state information on the display
-static void draw_info(TFT_t *dv, MCS6502ExecutionContext *context) {
+static void draw_info(TFT_t *dv) {
 	const uint8_t text_color = 2;
 	const uint8_t text_xpad = 5;
 	// Draw CPU state information
@@ -90,19 +90,19 @@ static void draw_info(TFT_t *dv, MCS6502ExecutionContext *context) {
 	draw_info_text(dv, "NMI", 5, 3, text_color);
 	
 	// Draw Accumulator
-	sprintf(buffer, "A:%02X", context->a);
+	sprintf(buffer, "A:%02X", 0);
 	draw_info_text(dv, buffer, 10, 3, text_color);
 	// Draw Stack Pointer
-	sprintf(buffer, "SP:%02X", context->sp);
+	sprintf(buffer, "SP:%02X", 0);
 	draw_info_text(dv, buffer, 1, 6, text_color);
 	// Draw X Register
-	sprintf(buffer, "X:%02X", context->x);
+	sprintf(buffer, "X:%02X", 0);
 	draw_info_text(dv, buffer, 10, 6, text_color);
 	// Draw Y Register
-	sprintf(buffer, "Y:%02X", context->y);
+	sprintf(buffer, "Y:%02X", 0);
 	draw_info_text(dv, buffer, 10, 9, text_color);
 	//// Draw Program Counter
-	sprintf(buffer, "PC:%04X", context->pc);
+	sprintf(buffer, "PC:%04X", 0);
 	draw_info_text(dv, buffer, 1, 9, text_color);
 	// Draw Memory Access Header
 	sprintf(buffer, "MEMORY ACCESS");
@@ -113,7 +113,7 @@ static void draw_info(TFT_t *dv, MCS6502ExecutionContext *context) {
 	sprintf(buffer, "$%04X", 0);
 	draw_info_text(dv, buffer, 3, 12, text_color);
 	// Draw Memory Data
-	sprintf(buffer, "$%02X", context->readByte(0, context->readWriteContext));
+	sprintf(buffer, "$%02X", 0);
 	draw_info_text(dv, buffer, 10, 12, text_color);
 	// Draw Status Registers Header
 	sprintf(buffer, "STATUS REGISTERS");
@@ -127,7 +127,8 @@ static void draw_info(TFT_t *dv, MCS6502ExecutionContext *context) {
 
 //-----------------------------------------------------------------------------
 // Initializes the information display module
-void idisplay_init(MCS6502ExecutionContext *context){
+void idisplay_init(){
+	// Initialize the display
 	spi_master_init(&dev, CONFIG_MOSI_GPIO, 
 					CONFIG_SCLK_GPIO, CONFIG_CS_GPIO, 
 					CONFIG_DC_GPIO, CONFIG_RESET_GPIO, 
@@ -135,19 +136,19 @@ void idisplay_init(MCS6502ExecutionContext *context){
 	lcdInit(&dev, CONFIG_WIDTH, CONFIG_HEIGHT, 
 			CONFIG_OFFSETX, CONFIG_OFFSETY);
   
+	// Initialize the font
   font_init();
   lcdSetFontDirection(&dev, 0); // Set font direction to 0 (normal)
-
+	
+	// Draw for demo
 	lcdFillScreen(&dev, theme_colors[0]);
 	draw_boxes(&dev);
+	draw_info(&dev);
 
-	draw_info(&dev, context);
-
-  return;
 }
 
 //-----------------------------------------------------------------------------
-void idisplay_task(void){
+void idisplay_task(){
   return;
 }
 

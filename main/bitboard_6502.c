@@ -7,17 +7,16 @@
 #include "esp_log.h"
 #include "esp_err.h"
 
-#include "MCS6502.h"
+#include "fake6502.c"
 #include "info_display.h"
 
 //-----------------------------------------------------------------------------
-uint8 break_flag = 0; // Global variable to track the break flag
-uint8 stack[256]; // Simulated stack 
+uint8_t break_flag = 0; // Global variable to track the break flag
+uint8_t stack[256]; // Simulated stack 
 
-MCS6502ExecutionContext mcs6502;
-static const uint16 EXEC_START = 0x0600;
+static const uint16_t EXEC_START = 0xE000;
 
-static const uint8 program[] = {
+static const uint8_t program[] = {
   0xA9, 0x01, // LDA #$01
   0x48,        // PHA (push accumulator to stack)
   0xA9, 0x04, // LDA #$04
@@ -26,32 +25,23 @@ static const uint8 program[] = {
   0x68,        // PLA (pull accumulator from stack)
   0x00        // BRK (end of program)
 };
-
 //-----------------------------------------------------------------------------
-uint8 MCS6502_Read(uint16 addr, void * readWriteContext){
+uint8_t read6502(uint16_t addr){
   // Debugging output
   printf("MCS6502_Read called with addr: %04X\n", addr);
 
   // Handle hardware interrupt vectors
-  if(addr == MCS6502_NMI_LO){
-    return 0x00; // Return low byte of NMI vector (not used in this example)
-  }
-  else if(addr == MCS6502_NMI_HI){
-    return 0x00; // Return high byte of NMI vector (not used in this example)
-  }
-  else if(addr == MCS6502_IRQ_BRK_LO){
-    break_flag = 1; // Set the break flag when IRQ/BRK is read
-    return 0x00; // Return low byte of IRQ/BRK vector (not used in this example)
-  }
-  else if(addr == MCS6502_IRQ_BRK_HI){
-    break_flag = 1; // Set the break flag when IRQ/BRK is read
-    return 0x00; // Return high byte of IRQ/BRK vector (not used in this example)
-  }
-  else if(addr == (MCS6502_RESET_LO)){
-    return EXEC_START & 0xFF; // Return low byte of reset vector
-  }
-  else if(addr == (MCS6502_RESET_HI)){
-    return (EXEC_START >> 8) & 0xFF; // Return high byte of reset vector
+  if(addr >= 0xFFFA && addr <= 0xFFFF) {
+    switch(addr) {
+      case 0xFFFC: return EXEC_START & 0xFF;       // Reset vector (low byte)
+      case 0xFFFD: return (EXEC_START >> 8) & 0xFF; // Reset vector (high byte)
+      case 0xFFFE: // IRQ/BRK vector (low byte)
+      case 0xFFFF: // IRQ/BRK vector (high byte)
+        break_flag = 1; // Set break flag when IRQ/BRK vector is read
+        return 0x00;
+      default: // 0xFFFA and 0xFFFB (NMI vector)
+        return 0x00;
+    }
   }
   // Handle stack operations
   else if(addr >= 0x0100 && addr < 0x0200) {
@@ -60,14 +50,14 @@ uint8 MCS6502_Read(uint16 addr, void * readWriteContext){
   }
 
   // Handle program memory read
-  if(addr >= EXEC_START && addr < EXEC_START + sizeof(program)) {
+  else if(addr >= EXEC_START && addr < EXEC_START + sizeof(program)) {
     return program[addr - EXEC_START]; // Return program byte
   }
 
   return 0; // Placeholder for read function
 }
 //-----------------------------------------------------------------------------
-void MCS6502_Write(uint16 addr, uint8 byte, void * readWriteContext)
+void write6502(uint16_t addr, uint8_t byte)
 {
   // Debugging output
   printf("MCS6502_Write called with addr: %04X, byte: %02X\n", addr, byte);
@@ -83,16 +73,13 @@ void MCS6502_Write(uint16 addr, uint8 byte, void * readWriteContext)
 //-----------------------------------------------------------------------------
 void app_main(void)
 {
-  
-  MCS6502Init(&mcs6502, MCS6502_Read, MCS6502_Write, NULL);
-  MCS6502Reset(&mcs6502);
+  reset6502(); // Initialize the 6502 CPU state
 
-  idisplay_init(&mcs6502); // Initialize the display
-
+  idisplay_init(); // Initialize the display
   while(!break_flag) {
-    MCS6502Tick(&mcs6502);
+    step6502(); // Execute a single instruction
     printf("PC: %04X, A: %02X, X: %02X, Y: %02X, SP: %02X, P: %02X\n",
-           mcs6502.pc, mcs6502.a, mcs6502.x, mcs6502.y, mcs6502.sp, mcs6502.p);
+           pc, a, x, y, sp, status);
     vTaskDelay(pdMS_TO_TICKS(500)); // Adjust delay as needed
   }
 }

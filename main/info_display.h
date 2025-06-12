@@ -7,7 +7,6 @@
 
 #include "st7789.h"
 #include "fontx.h"
-#include "MCS6502.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -24,7 +23,7 @@
 #define COLOR4 0x169976 // #169976
 
 //-----------------------------------------------------------------------------
-void idisplay_init(MCS6502ExecutionContext *context);
-void idisplay_task(void);
+void idisplay_init();
+void idisplay_task();
 
 #endif
