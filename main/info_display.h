@@ -18,9 +18,11 @@
 //-----------------------------------------------------------------------------
 
 #define COLOR1 0x000000 // #000000
-#define COLOR2 0x222222 // #222222
-#define COLOR3 0x1DCD9F // #1DCD9F
-#define COLOR4 0x169976 // #169976
+#define COLOR2 0x273F4F // #273F4F
+#define COLOR3 0xEFEEEA // #EFEEEA
+#define COLOR4 0xFE7743 // #FE7743
+
+extern unsigned int idisplay_numbers[32];
 
 //-----------------------------------------------------------------------------
 void idisplay_init();

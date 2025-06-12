@@ -12,7 +12,7 @@
 #include "st7789.h"
 
 #define TAG "ST7789"
-#define	_DEBUG_ 1
+#define	_DEBUG_ 0
 
 #if CONFIG_SPI2_HOST
 #define HOST_ID SPI2_HOST
