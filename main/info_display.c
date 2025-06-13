@@ -4,17 +4,13 @@
 //-----------------------------------------------------------------------------
 #include "info_display.h"
 #include "esp_log.h"
+#define P_ARRAY_IMPLEMENTATION
+#include "p_array.h"
 //-----------------------------------------------------------------------------
 TFT_t dev;
 FontxFile font[2];
 FontxFile font_small[2];
-
-unsigned int idisplay_numbers[32];
-static char idisplay_blocks_text[32][32];
-static uint8_t idisplay_blocks_bool[32];
-static uint8_t idisplay_blocks_x[32];
-static uint8_t idisplay_blocks_y[32];
-static uint8_t idisplay_blocks_count = 0;
+array* idisplay_blocks;
 
 static const uint8_t grid_size = 15;
 static const uint16_t theme_colors[4] = {
@@ -64,65 +60,55 @@ static void draw_info_block(TFT_t *dv, const char *text, uint16_t x, uint16_t y,
 	return;
 }
 //-----------------------------------------------------------------------------
-static void idisplay_draw_block(TFT_t *dv, uint8_t index) {
+static void idisplay_draw_block(TFT_t *dv, idisplay_block_t *block) {
 	if(index >= idisplay_blocks_count) {
 		ESP_LOGE("IDISPLAY", "Block index %d out of range (max %d)", index, idisplay_blocks_count - 1);
 		return;
 	}
-	const char *text = idisplay_blocks_text[index];
-	uint8_t x = idisplay_blocks_x[index];
-	uint8_t y = idisplay_blocks_y[index];
-	draw_info_block(dv, text, x, y, idisplay_blocks_bool[index]);
-	return;
-}
-static void idisplay_set_block(uint8_t index, const char *text, uint8_t x, uint8_t y) {
-	if(index < 32) {
-		strncpy(idisplay_blocks_text[index], text, sizeof(idisplay_blocks_text[index]) - 1);
-		idisplay_blocks_text[index][sizeof(idisplay_blocks_text[index]) - 1] = '\0'; // Ensure null-termination
-		idisplay_blocks_x[index] = x;
-		idisplay_blocks_y[index] = y;
-		idisplay_draw_block(&dev, index); // Draw the block immediately
+	char text[32];
+	sprintf(text, "%s", block->label);
+	if(block->display_value_enabled){
+		if(block->value_text_len == 1)
+			sprintf(text, ":%01X", block->value);
+		else if(block->value_text_len == 2)
+			sprintf(text, ":%02X", block->value);
+		else if(block->value_text_len == 4)
+			sprintf(text, ":%04X", block->value);
 	}
+	uint8_t x = block->x;
+	uint8_t y = block->y;
+	draw_info_block(dv, text, x, y, block->bool_value);
 	return;
 }
-void idisplay_add_block(const char *text, uint8_t x, uint8_t y) {
-	if(idisplay_blocks_count < 32) {
-		idisplay_set_block(idisplay_blocks_count++, text, x, y);
-	}
+//-----------------------------------------------------------------------------
+void idisplay_set_block(uint8_t index, idisplay_block_t *block) {
+	array_set(idisplay_blocks, index, block);
+	idisplay_draw_block(&dev, block); // Draw the block immediately
 	return;
 }
-void idisplay_update_block_text(uint8_t index, const char *text, uint8_t text_len, uint8_t block_bool) {
+//-----------------------------------------------------------------------------
+uint8_t idisplay_add_block(idisplay_block_t *block) {
+	array_push(idisplay_blocks, block);
+	idisplay_draw_block(&dev, block); // Draw the block immediately
+	return idisplay_blocks->length - 1; // Return the index of the newly added block
+}
+//-----------------------------------------------------------------------------
+void idisplay_update_block(uint8_t index, idisplay_block_t *block) {
 	// If new text different from existing text, update it
-	if((strcmp(idisplay_blocks_text[index], text) == 0) && 
-	   (idisplay_blocks_bool[index] == block_bool)) {
+	idisplay_block_t existing_block;
+	array_get(idisplay_blocks, index, &existing_block);
+	if(memcmp(&existing_block, block, sizeof(idisplay_block_t)) == 0) {
 		return; // No change needed
 	}
-	if(text == NULL || text_len == 0) {
-		ESP_LOGE("IDISPLAY", "Invalid text or text length");
-		return;
-	}
-	if(index >= 32) {
-		ESP_LOGE("IDISPLAY", "Block index %d out of range (max 31)", index);
-		return;
-	}
-	if(text_len >= sizeof(idisplay_blocks_text[index])) {
-		ESP_LOGE("IDISPLAY", "Text length exceeds block size");
-		return;
-	}
-	if(index < idisplay_blocks_count) {
-		strncpy(idisplay_blocks_text[index], text, text_len);
-		idisplay_blocks_text[index][text_len] = '\0'; // Ensure null-termination
-		idisplay_blocks_bool[index] = block_bool; // Update the boolean state
-		idisplay_draw_block(&dev, index); // Redraw the block with updated text
-	} else {
-		ESP_LOGE("IDISPLAY", "Block index %d out of range (max %d)", index, idisplay_blocks_count - 1);
-	}
-	return;
+	array_set(idisplay_blocks, index, block);
+	idisplay_draw_block(&dev, block); // Redraw the block with updated values
+	return; 
 }
 
 //-----------------------------------------------------------------------------
 // Initializes the information display module
 void idisplay_init(){
+	idisplay_blocks = array_create(32, sizeof(idisplay_block_t));
 	// Initialize the display
 	spi_master_init(&dev, CONFIG_MOSI_GPIO, 
 					CONFIG_SCLK_GPIO, CONFIG_CS_GPIO, 
@@ -138,16 +124,48 @@ void idisplay_init(){
 	// Draw for demo
 	lcdFillScreen(&dev, theme_colors[0]);
 	
-	char buffer[32];
 
+}
+
+//-----------------------------------------------------------------------------
+void idisplay_task(){
+
+	idisplay_block_t new_block;
+	todo("Reformat this code to use new idisplay_add_block function"); 
 	// Draw Interrupt Request (IRQ) status
-	idisplay_add_block("IRQ", 1, 3);
+	new_block = (idisplay_block_t){
+		.label = "IRQ",
+		.value = 0, // Placeholder value
+		.value_text_len = 0,
+		.display_value_enabled = false,
+		.x = 1,
+		.y = 3,
+		.bool_value = false 
+	};
+	uint8_t block_irq = idisplay_add_block(&new_block);
 	// Draw Non-Maskable Interrupt (NMI) status
-	idisplay_add_block("NMI", 5, 3);
+	new_block = (idisplay_block_t){
+		.label = "NMI",
+		.value = 0, // Placeholder value
+		.value_text_len = 0,
+		.display_value_enabled = false,
+		.x = 5,
+		.y = 3,
+		.bool_value = false 
+	};
+	uint8_t block_nmi = idisplay_add_block(&new_block);
 	// Draw Accumulator
-	sprintf(buffer, "A:%02X", 0);
-	idisplay_add_block(buffer, 10, 3);
-	// Draw Stack Pointer
+	new_block = (idisplay_block_t){
+		.label = "A",
+		.value = 0, // Placeholder value
+		.value_text_len = 2,
+		.display_value_enabled = true,
+		.x = 10,
+		.y = 3,
+		.bool_value = false 
+	};
+	uint8_t block_a = idisplay_add_block(&new_block);
+	/* // Draw Stack Pointer
 	sprintf(buffer, "SP:%02X", 0);
 	idisplay_add_block(buffer, 1, 6);
 	// Draw X Register
@@ -180,12 +198,7 @@ void idisplay_init(){
 	idisplay_add_block("D", 7, 15);
 	idisplay_add_block("I", 9, 15);
 	idisplay_add_block("Z", 11, 15);
-	idisplay_add_block("C", 13, 15);
-
-}
-
-//-----------------------------------------------------------------------------
-void idisplay_task(){
+	idisplay_add_block("C", 13, 15); */
 	char buffer[32];
 	while(1){
 		// Update Interrupt Request (IRQ) status
@@ -195,7 +208,7 @@ void idisplay_task(){
 		// Update Accumulator
 		sprintf(buffer, "A:%02X", idisplay_numbers[2]);
 		idisplay_update_block_text(2, buffer, 4, 0);
-		// Update Stack Pointer
+		/* // Update Stack Pointer
 		sprintf(buffer, "SP:%02X",idisplay_numbers[3]);
 		idisplay_update_block_text(3, buffer, 5, 0);
 		// Update X Register
@@ -222,7 +235,7 @@ void idisplay_task(){
 		idisplay_update_block_text(13, "D", 1, idisplay_numbers[13]);
 		idisplay_update_block_text(14, "I", 1, idisplay_numbers[14]);
 		idisplay_update_block_text(15, "Z", 1, idisplay_numbers[15]);
-		idisplay_update_block_text(16, "C", 1, idisplay_numbers[16]);
+		idisplay_update_block_text(16, "C", 1, idisplay_numbers[16]); */
 
     vTaskDelay(1); // Adjust delay as needed
 	}

@@ -130,8 +130,6 @@ void app_main(void)
       continue; // Skip execution if break flag is set
     }
     step6502(); // Execute a single instruction
-    //printf("PC: %04X, A: %02X, X: %02X, Y: %02X, SP: %02X, P: %02X\n",
-    //     pc, a, x, y, sp, status);
     
     idisplay_numbers[2] = a; // Update display with accumulator value
     idisplay_numbers[3] = sp; // Update display with stack pointer value

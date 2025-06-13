@@ -22,7 +22,17 @@
 #define COLOR3 0xEFEEEA // #EFEEEA
 #define COLOR4 0xFE7743 // #FE7743
 
-extern unsigned int idisplay_numbers[32];
+extern idisplay_block_t idisplay_blocks[32];
+extern uint8_t idisplay_blocks_count = 0;
+typedef struct {
+	char label[32]; 		// Text to display
+	int32_t value;      // Value to display (can be used for numbers)
+	uint8_t value_text_len; // Length of the value text
+	uint8_t display_value_enabled; // Flag to enable/disable value display
+	uint8_t x;        // X position in grid
+	uint8_t y;        // Y position in grid
+	uint8_t bool_value; // Boolean value for the block (0 or 1)
+}idisplay_block_t;
 
 //-----------------------------------------------------------------------------
 void idisplay_init();
