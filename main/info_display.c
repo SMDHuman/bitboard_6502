@@ -57,42 +57,51 @@ static void draw_info_block(TFT_t *dv, const char *text, uint16_t x, uint16_t y,
 	lcdDrawRoundRect(dv, grid_size*x, grid_size*(y-2), grid_size*(x+strlen(text)+1), grid_size*y, 
 									 4, theme_colors[3]);
 	lcdDrawString(dv, font, x*grid_size+5, y*grid_size + 1, (uint8_t*)text, theme_colors[2]);
-	return;
 }
 //-----------------------------------------------------------------------------
 static void idisplay_draw_block(TFT_t *dv, idisplay_block_t *block) {
-	if(index >= idisplay_blocks_count) {
-		ESP_LOGE("IDISPLAY", "Block index %d out of range (max %d)", index, idisplay_blocks_count - 1);
-		return;
-	}
 	char text[32];
 	sprintf(text, "%s", block->label);
-	if(block->display_value_enabled){
-		if(block->value_text_len == 1)
-			sprintf(text, ":%01X", block->value);
-		else if(block->value_text_len == 2)
-			sprintf(text, ":%02X", block->value);
-		else if(block->value_text_len == 4)
-			sprintf(text, ":%04X", block->value);
+	if(block->value_text_len > 0 && block->label[0] != 0) {
+		strcat(text, ":");
 	}
+	if(block->value_text_len == 1)
+		sprintf(text+strlen(text), "%01X", (unsigned int)(block->value));
+	else if(block->value_text_len == 2)
+		sprintf(text+strlen(text), "%02X", (unsigned int)(block->value));
+	else if(block->value_text_len == 4)
+		sprintf(text+strlen(text), "%04X", (unsigned int)(block->value));
 	uint8_t x = block->x;
 	uint8_t y = block->y;
 	draw_info_block(dv, text, x, y, block->bool_value);
-	return;
 }
 //-----------------------------------------------------------------------------
 void idisplay_set_block(uint8_t index, idisplay_block_t *block) {
 	array_set(idisplay_blocks, index, block);
 	idisplay_draw_block(&dev, block); // Draw the block immediately
-	return;
 }
 //-----------------------------------------------------------------------------
 uint8_t idisplay_add_block(idisplay_block_t *block) {
 	array_push(idisplay_blocks, block);
 	idisplay_draw_block(&dev, block); // Draw the block immediately
-	return idisplay_blocks->length - 1; // Return the index of the newly added block
+	return((uint8_t)(idisplay_blocks->length - 1)); // Return the index of the newly added block
 }
 //-----------------------------------------------------------------------------
+uint8_t idisplay_create_block(const char *label, uint8_t value_text_len,
+															uint8_t x, uint8_t y) {
+	idisplay_block_t new_block;
+	strncpy(new_block.label, label, sizeof(new_block.label) - 1);
+	new_block.label[sizeof(new_block.label) - 1] = '\0'; // Ensure null-termination
+	new_block.value = 0; // Default value
+	new_block.value_text_len = value_text_len;
+	new_block.x = x;
+	new_block.y = y;
+	new_block.bool_value = 0; // Default boolean value
+
+	return idisplay_add_block(&new_block);
+}
+//-----------------------------------------------------------------------------
+// Updates the block data at the specified index *if the new data is different
 void idisplay_update_block(uint8_t index, idisplay_block_t *block) {
 	// If new text different from existing text, update it
 	idisplay_block_t existing_block;
@@ -102,7 +111,28 @@ void idisplay_update_block(uint8_t index, idisplay_block_t *block) {
 	}
 	array_set(idisplay_blocks, index, block);
 	idisplay_draw_block(&dev, block); // Redraw the block with updated values
-	return; 
+}
+//-----------------------------------------------------------------------------
+void idisplay_update_block_value(uint8_t index, int32_t value) {
+	idisplay_block_t block;
+	array_get(idisplay_blocks, index, &block);
+	block.value = value; // Update the value
+	idisplay_update_block(index, &block); // Update the block with new value
+}
+//-----------------------------------------------------------------------------
+void idisplay_update_block_bool(uint8_t index, int32_t bool_value) {
+	idisplay_block_t block;
+	array_get(idisplay_blocks, index, &block);
+	block.bool_value = bool_value; // Update the value
+	idisplay_update_block(index, &block); // Update the block with new value
+}
+//-----------------------------------------------------------------------------
+void idisplay_update_block_label(uint8_t index, const char *label) {
+	idisplay_block_t block;
+	array_get(idisplay_blocks, index, &block);
+	strncpy(block.label, label, sizeof(block.label) - 1);
+	block.label[sizeof(block.label) - 1] = '\0'; // Ensure null-termination
+	idisplay_update_block(index, &block); // Update the block with new label
 }
 
 //-----------------------------------------------------------------------------
@@ -123,121 +153,83 @@ void idisplay_init(){
 	
 	// Draw for demo
 	lcdFillScreen(&dev, theme_colors[0]);
-	
-
 }
 
 //-----------------------------------------------------------------------------
 void idisplay_task(){
 
-	idisplay_block_t new_block;
-	todo("Reformat this code to use new idisplay_add_block function"); 
 	// Draw Interrupt Request (IRQ) status
-	new_block = (idisplay_block_t){
-		.label = "IRQ",
-		.value = 0, // Placeholder value
-		.value_text_len = 0,
-		.display_value_enabled = false,
-		.x = 1,
-		.y = 3,
-		.bool_value = false 
-	};
-	uint8_t block_irq = idisplay_add_block(&new_block);
+	uint8_t block_irq = idisplay_create_block("IRQ", 0, 1, 3);
 	// Draw Non-Maskable Interrupt (NMI) status
-	new_block = (idisplay_block_t){
-		.label = "NMI",
-		.value = 0, // Placeholder value
-		.value_text_len = 0,
-		.display_value_enabled = false,
-		.x = 5,
-		.y = 3,
-		.bool_value = false 
-	};
-	uint8_t block_nmi = idisplay_add_block(&new_block);
+	uint8_t block_nmi = idisplay_create_block("NMI", 0, 5, 3);
 	// Draw Accumulator
-	new_block = (idisplay_block_t){
-		.label = "A",
-		.value = 0, // Placeholder value
-		.value_text_len = 2,
-		.display_value_enabled = true,
-		.x = 10,
-		.y = 3,
-		.bool_value = false 
-	};
-	uint8_t block_a = idisplay_add_block(&new_block);
-	/* // Draw Stack Pointer
-	sprintf(buffer, "SP:%02X", 0);
-	idisplay_add_block(buffer, 1, 6);
+	uint8_t block_a = idisplay_create_block("A", 2, 10, 3);
+	// Draw Stack Pointer
+	uint8_t block_sp = idisplay_create_block("SP", 2, 1, 6);
 	// Draw X Register
-	sprintf(buffer, "X:%02X", 0);
-	idisplay_add_block(buffer, 10, 6);
+	uint8_t block_x = idisplay_create_block("X", 2, 10, 6);
 	//// Draw Program Counter
-	sprintf(buffer, "PC:%04X", 0);
-	idisplay_add_block(buffer, 1, 9);
+	uint8_t block_pc = idisplay_create_block("PC", 4, 1, 9);
 	// Draw Y Register
-	sprintf(buffer, "Y:%02X", 0);
-	idisplay_add_block(buffer, 10, 9);
+	uint8_t block_y = idisplay_create_block("Y", 2, 10, 9);
 	// Draw Memory Access Header
+	char buffer[32];
 	sprintf(buffer, "MEMORY ACCESS");
 	lcdDrawString(&dev, font_small, 1*grid_size, 10*grid_size+2, (uint8_t*)buffer, theme_colors[2]);
 	// Draw Memory Read/Write
-	idisplay_add_block("-", 1, 12);
+	uint8_t block_rw = idisplay_create_block("-", 0, 1, 12);
 	// Draw Memory Address
-	sprintf(buffer, "$%04X", 0);
-	idisplay_add_block(buffer, 3, 12);
+	uint8_t block_address = idisplay_create_block("$", 4, 3, 12);
 	// Draw Memory Data
-	sprintf(buffer, "$%02X", 0);
-	idisplay_add_block(buffer, 10, 12);
+	uint8_t block_data = idisplay_create_block("$", 2, 10, 12);
 	// Draw Status Registers Header
 	sprintf(buffer, "STATUS REGISTERS");
 	lcdDrawString(&dev, font_small, 1*grid_size, 13*grid_size+2, (uint8_t*)buffer, theme_colors[2]);
 	//// Draw Status Register
-	idisplay_add_block("N", 1, 15);
-	idisplay_add_block("V", 3, 15);
-	idisplay_add_block("B", 5, 15);
-	idisplay_add_block("D", 7, 15);
-	idisplay_add_block("I", 9, 15);
-	idisplay_add_block("Z", 11, 15);
-	idisplay_add_block("C", 13, 15); */
-	char buffer[32];
+	uint8_t block_n = idisplay_create_block("N", 0, 1, 15);
+	uint8_t block_v = idisplay_create_block("V", 0, 3, 15);
+	uint8_t block_b = idisplay_create_block("B", 0, 5, 15);
+	uint8_t block_d = idisplay_create_block("D", 0, 7, 15);
+	uint8_t block_i = idisplay_create_block("I", 0, 9, 15);
+	uint8_t block_z = idisplay_create_block("Z", 0, 11, 15);
+	uint8_t block_c = idisplay_create_block("C", 0, 13, 15);
 	while(1){
 		// Update Interrupt Request (IRQ) status
-		idisplay_update_block_text(0, "IRQ", 3, idisplay_numbers[0]);
+		//idisplay_update_block_bool(block_irq, );
 		// Update Non-Maskable Interrupt (NMI) status
-		idisplay_update_block_text(1, "NMI", 3, idisplay_numbers[1]);
+		//idisplay_update_block_bool(block_nmi, );
 		// Update Accumulator
-		sprintf(buffer, "A:%02X", idisplay_numbers[2]);
-		idisplay_update_block_text(2, buffer, 4, 0);
-		/* // Update Stack Pointer
-		sprintf(buffer, "SP:%02X",idisplay_numbers[3]);
-		idisplay_update_block_text(3, buffer, 5, 0);
+		idisplay_update_block_value(block_a, *fake6502_a);
+		// Update Stack Pointer
+		idisplay_update_block_value(block_sp, *fake6502_sp);
 		// Update X Register
-		sprintf(buffer, "X:%02X", idisplay_numbers[4]);
-		idisplay_update_block_text(4, buffer, 4, 0);
+		idisplay_update_block_value(block_x, *fake6502_x);
 		// Update Program Counter
-		sprintf(buffer, "PC:%04X",idisplay_numbers[5]);
-		idisplay_update_block_text(5, buffer, 7, 0);
+		idisplay_update_block_value(block_pc, *fake6502_pc);
 		// Update Y Register
-		sprintf(buffer, "Y:%02X", idisplay_numbers[6]);
-		idisplay_update_block_text(6, buffer, 4, 0);
-
+		idisplay_update_block_value(block_y, *fake6502_y);
 		// Update Memory Access Address
-		sprintf(buffer, "$%04X", idisplay_numbers[8]);
-		idisplay_update_block_text(8, buffer, 5, 0);
+		idisplay_update_block_value(block_address, fake6502_memaccess_address);
 		// Update Memory Access Data
-		sprintf(buffer, "$%02X", idisplay_numbers[9]);
-		idisplay_update_block_text(9, buffer, 5, 0);
+		idisplay_update_block_value(block_data, fake6502_memaccess_data);
+		// Update Memory Access Read/Write
+		if(fake6502_memaccess_mode == 1) {
+			idisplay_update_block_label(block_rw, "R");
+		} else if(fake6502_memaccess_mode == 2) {
+			idisplay_update_block_label(block_rw, "W");
+		} else {
+			idisplay_update_block_label(block_rw, "-");
+		}
+		// Update Status Registers
+		idisplay_update_block_bool(block_n, (*fake6502_status & 0x80) ? 1 : 0);
+		idisplay_update_block_bool(block_v, (*fake6502_status & 0x40) ? 1 : 0);
+		idisplay_update_block_bool(block_b, (*fake6502_status & 0x10) ? 1 : 0);
+		idisplay_update_block_bool(block_d, (*fake6502_status & 0x08) ? 1 : 0);
+		idisplay_update_block_bool(block_i, (*fake6502_status & 0x04) ? 1 : 0);
+		idisplay_update_block_bool(block_z, (*fake6502_status & 0x02) ? 1 : 0);
+		idisplay_update_block_bool(block_c, (*fake6502_status & 0x01) ? 1 : 0); 
 
-		// Update Status Registers 
-		idisplay_update_block_text(10, "N", 1, idisplay_numbers[10]);
-		idisplay_update_block_text(11, "V", 1, idisplay_numbers[11]);
-		idisplay_update_block_text(12, "B", 1, idisplay_numbers[12]);
-		idisplay_update_block_text(13, "D", 1, idisplay_numbers[13]);
-		idisplay_update_block_text(14, "I", 1, idisplay_numbers[14]);
-		idisplay_update_block_text(15, "Z", 1, idisplay_numbers[15]);
-		idisplay_update_block_text(16, "C", 1, idisplay_numbers[16]); */
-
-    vTaskDelay(1); // Adjust delay as needed
+    vTaskDelay(1); 
 	}
 }
 

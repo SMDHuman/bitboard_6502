@@ -104,6 +104,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "fake6502.h"
 
 //6502 defines
 //#define UNDOCUMENTED //when this is defined, undocumented opcodes are handled.
@@ -114,34 +115,7 @@
                      //CPU in the Nintendo Entertainment System does not
                      //support BCD operation.
 
-#define FLAG_CARRY     0x01
-#define FLAG_ZERO      0x02
-#define FLAG_INTERRUPT 0x04
-#define FLAG_DECIMAL   0x08
-#define FLAG_BREAK     0x10
-#define FLAG_CONSTANT  0x20
-#define FLAG_OVERFLOW  0x40
-#define FLAG_SIGN      0x80
-
-#define BASE_STACK     0x100
-
 #define saveaccum(n) a = (uint8_t)((n) & 0x00FF)
-
-
-//flag modifier macros
-#define setcarry() status |= FLAG_CARRY
-#define clearcarry() status &= (~FLAG_CARRY)
-#define setzero() status |= FLAG_ZERO
-#define clearzero() status &= (~FLAG_ZERO)
-#define setinterrupt() status |= FLAG_INTERRUPT
-#define clearinterrupt() status &= (~FLAG_INTERRUPT)
-#define setdecimal() status |= FLAG_DECIMAL
-#define cleardecimal() status &= (~FLAG_DECIMAL)
-#define setoverflow() status |= FLAG_OVERFLOW
-#define clearoverflow() status &= (~FLAG_OVERFLOW)
-#define setsign() status |= FLAG_SIGN
-#define clearsign() status &= (~FLAG_SIGN)
-
 
 //flag calculation macros
 #define zerocalc(n) {\
@@ -166,9 +140,15 @@
 
 
 //6502 CPU registers
-uint16_t pc;
-uint8_t sp, a, x, y, status;
+static uint16_t pc;
+static uint8_t sp, a, x, y, status;
 
+uint16_t *fake6502_pc = &pc;
+uint8_t *fake6502_sp = &sp; 
+uint8_t *fake6502_a = &a;
+uint8_t *fake6502_x = &x;
+uint8_t *fake6502_y = &y;
+uint8_t *fake6502_status = &status;
 
 //helper variables
 uint32_t instructions = 0; //keep track of total instructions executed
@@ -176,9 +156,6 @@ uint32_t clockticks6502 = 0, clockgoal6502 = 0;
 uint16_t oldpc, ea, reladdr, value, result;
 uint8_t opcode, oldstatus;
 
-//externally supplied functions
-extern uint8_t read6502(uint16_t address);
-extern void write6502(uint16_t address, uint8_t value);
 
 //a few general functions used by various other functions
 void push16(uint16_t pushval) {
@@ -968,4 +945,21 @@ void hookexternal(void *funcptr) {
         loopexternal = funcptr;
         callexternal = 1;
     } else callexternal = 0;
+}
+
+void fakemem_set_callable_read(uint16_t address, uint8_t (*read)(uint16_t)){
+  fakemem_callable[address].read = read;
+}
+void fakemem_set_callable_write(uint16_t address, void (*write)(uint16_t, uint8_t)){
+  fakemem_callable[address].write = write;
+}
+void fakemem_set_callable_read_block(uint16_t address, uint8_t size, uint8_t (*read)(uint16_t)){
+  for(int i = 0; i < size; i++){
+    fakemem_set_callable_read(address + i, read);
+  }
+}
+void fakemem_set_callable_write_block(uint16_t address, uint8_t size, void (*write)(uint16_t, uint8_t)){
+  for(int i = 0; i < size; i++){
+    fakemem_set_callable_write(address + i, write);
+  }
 }
