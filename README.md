@@ -2,14 +2,16 @@
 
 This project aims to create a simple 6502 emulator running on a microcontroller, with a display to visualize CPU registers and variables. I utilized my custom board called "Bitboard Bir" for this implementation.
 
-## About Bitboard Bir
+## About Bitboard Bir 
+<img src="/docs/Bitboard_Graphics1.jpg" width="200" title="Bitboard Graphics" style="float: right;">
 
-Bitboard Bir is a custom ESP32-S3 based development board I designed. It features:
+Bitboard Bir is a custom ESP32-S3 based development board I designed. It features: 
 - 1.3 inch ST7789 display (on-board)
 - 24 GPIO pins
 - CP210x USB interface
 
 While this board is no longer in active development, it serves perfectly for this project.
+
 
 ## Project Goals
 
