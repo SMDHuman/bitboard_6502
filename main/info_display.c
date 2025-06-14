@@ -221,6 +221,7 @@ void idisplay_task(){
 			idisplay_update_block_label(block_rw, "-");
 		}
 		// Update Status Registers
+		{
 		idisplay_update_block_bool(block_n, (*fake6502_status & 0x80) ? 1 : 0);
 		idisplay_update_block_bool(block_v, (*fake6502_status & 0x40) ? 1 : 0);
 		idisplay_update_block_bool(block_b, (*fake6502_status & 0x10) ? 1 : 0);
@@ -228,7 +229,7 @@ void idisplay_task(){
 		idisplay_update_block_bool(block_i, (*fake6502_status & 0x04) ? 1 : 0);
 		idisplay_update_block_bool(block_z, (*fake6502_status & 0x02) ? 1 : 0);
 		idisplay_update_block_bool(block_c, (*fake6502_status & 0x01) ? 1 : 0); 
-
+}
     vTaskDelay(1); 
 	}
 }

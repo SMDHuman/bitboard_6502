@@ -7,9 +7,11 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "driver/gpio.h"
+#include "esp_task_wdt.h"
 
 #include "fake6502.h"
 #include "info_display.h"
+#include "command_handler.h"
 
 //-----------------------------------------------------------------------------
 uint8_t break_flag = 0; // Global variable to track the break flag
@@ -24,18 +26,6 @@ uint8_t fake6502_memaccess_data;
 uint8_t fake6502_memaccess_mode;
 
 const uint16_t EXEC_START = 0xE000;
-//-----------------------------------------------------------------------------
-void io_write(uint16_t addr, uint8_t byte) {
-  // Handle IO write operations
-  if(byte == 0x01) {
-    gpio_set_level(GPIO_NUM_45, 1); // Set GPIO 45 high
-  } else if(byte == 0x00) {
-    gpio_set_level(GPIO_NUM_45, 0); // Set GPIO 45 low
-  }
-}
-void delay_write(uint16_t addr, uint8_t byte){
-  vTaskDelay(pdMS_TO_TICKS(byte));
-}
 //-----------------------------------------------------------------------------
 uint8_t read6502(uint16_t addr){
   // Debugging output
@@ -85,7 +75,6 @@ void fakemem_init(){
   fakemem[0xFFFC] = EXEC_START & 0xFF; // Set reset vector low byte
   fakemem[0xFFFD] = (EXEC_START >> 8) & 0xFF; // Set reset vector high byt
 }
-
 //-----------------------------------------------------------------------------
 void io_init(){
   // Initialize the IO Buttons and Leds
@@ -105,9 +94,47 @@ void io_init(){
     .intr_type = GPIO_INTR_DISABLE // No interrupt for output pins
   };
   gpio_config(&config_led); // Configure GPIO 45 as output
-
-  fakemem_set_callable_write(0, &io_write);
 }
+//-----------------------------------------------------------------------------
+void io_task(void *pvParameters) {
+  while(1) {
+    // Check if GPIO 0 button is pressed
+    if(!gpio_get_level(GPIO_NUM_0)) {
+      //printf("Resetting 6502 CPU...\n");
+      reset6502(); // Reset the CPU state
+      clearinterrupt(); // Clear the interrupt flag
+      break_flag = 0; // Clear the break flag
+      while(!gpio_get_level(GPIO_NUM_0)){
+        vTaskDelay(pdMS_TO_TICKS(250)); 
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(150)); // Adjust delay as needed
+  }
+}
+
+//-----------------------------------------------------------------------------
+void io_write(uint16_t addr, uint8_t byte) {
+  // Handle IO write operations
+  if(byte == 0x01) {
+    gpio_set_level(GPIO_NUM_45, 1); // Set GPIO 45 high
+  } else if(byte == 0x00) {
+    gpio_set_level(GPIO_NUM_45, 0); // Set GPIO 45 low
+  }
+}
+void delay_write(uint16_t addr, uint8_t byte){
+  vTaskDelay(pdMS_TO_TICKS(byte));
+}
+//-----------------------------------------------------------------------------
+void log_perf_task(void *pvParameters) {
+  static uint32_t old_instructions = 0;
+  while(1) {
+    // Log performance metrics every second
+    printf("6502 CPU Speed: %dKips\n", (int)((instructions - old_instructions)/1000));
+    old_instructions = instructions; // Update old instruction count
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Log every second
+  }
+}
+//-----------------------------------------------------------------------------
 const uint8_t program[] = {
     0xA9, 0x01, // LDA #$01
     0x85, 0x00, // STA $00
@@ -117,6 +144,8 @@ const uint8_t program[] = {
     0x85, 0x02, // STA $02
     0xA9, 0x04, // LDA #$04
     0x85, 0x03, // STA $03
+    // jump to start
+    0x4C, 0x00, 0xE0, 
     // write 1 to fe00 to turn on LED
     0xA9, 0x01, // LDA #$01
     0x8D, 0x00, 0xFE, // STA $FE00
@@ -147,37 +176,55 @@ void app_main(void)
 {
   io_init(); // Initialize IO for buttons and LEDs
   fakemem_init(); // Initialize fake memory 
-  // Load Default program into memory
+  //  Set up callable memory for IO operations
+  fakemem_set_callable_write(0, &io_write);
   fakemem_set_callable_write(1, &delay_write);
+  // Load Default program into memory
   memcpy(&fakemem[EXEC_START], program, sizeof(program)); 
   //printf("Program loaded into memory at address %04X\n", EXEC_START);
   idisplay_init(); // Initialize the display 
+
+  // Create tasks
   xTaskCreatePinnedToCore(
     (TaskFunction_t)idisplay_task, // Task function
     "idisplay_task", // Task name
+    4096, // Stack size
+    NULL, // Task parameters
+    1, // Priority
+    NULL, // Task handle
+    1 // Core ID (0 for core 0)
+  );
+  xTaskCreatePinnedToCore(
+    (TaskFunction_t)io_task, // Task function
+    "io_task", // Task name
     2048, // Stack size
     NULL, // Task parameters
     1, // Priority
     NULL, // Task handle
     1 // Core ID (0 for core 0)
   );
+  xTaskCreatePinnedToCore(
+    (TaskFunction_t)log_perf_task, // Task function
+    "log_perf_task", // Task name
+    2048, // Stack size
+    NULL, // Task parameters
+    2, // Priority
+    NULL, // Task handle
+    1 // Core ID (0 for core 0)
+  );
+
   // Reset the 6502 CPU before starting execution
   reset6502(); 
   while(1) {
-    if(!gpio_get_level(GPIO_NUM_0)) { // Check if GPIO 0 button is pressed
-      printf("Resetting 6502 CPU...\n");
-      reset6502(); // Reset the CPU state
-      clearinterrupt(); // Clear the interrupt flag
-      break_flag = 0; // Clear the break flag
-      while(!gpio_get_level(GPIO_NUM_0)){
-        vTaskDelay(pdMS_TO_TICKS(250)); 
-      }
-    }
     if(break_flag){
-      vTaskDelay(1); // Adjust delay as needed
+      vTaskDelay(1); 
       continue; // Skip execution if break flag is set
     }
-    step6502(); 
+    step6502();
+    if(instructions % 50000 == 0) {
+      // Reset the watchdog timer every 50,000 instructions
+      vTaskDelay(1); 
+    }
   }
 }
 
