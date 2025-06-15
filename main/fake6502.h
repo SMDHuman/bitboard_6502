@@ -3,21 +3,10 @@
 
 #include <stddef.h>
 #include <stdint.h>
-
-
-typedef struct {
-  uint8_t (*read)(uint16_t address); // Function pointer for reading memory
-  void (*write)(uint16_t address, uint8_t value); // Function pointer for writing memory
-} fakemem_callable_t;
-extern fakemem_callable_t fakemem_callable[];
-void fakemem_set_callable_read(uint16_t address, uint8_t (*read)(uint16_t));
-void fakemem_set_callable_write(uint16_t address, void (*write)(uint16_t, uint8_t));
-void fakemem_set_callable_read_block(uint16_t address, uint8_t size, uint8_t (*read)(uint16_t));
-void fakemem_set_callable_write_block(uint16_t address, uint8_t size, void (*write)(uint16_t, uint8_t));
+#include "fakemem.h"
 
 
 //6502 defines
-extern uint8_t fakemem[65536]; // Simulated memory for the 6502 CPU
 extern uint16_t *fake6502_pc;
 extern uint8_t *fake6502_sp; 
 extern uint8_t *fake6502_a;
@@ -25,10 +14,8 @@ extern uint8_t *fake6502_x;
 extern uint8_t *fake6502_y;
 extern uint8_t *fake6502_status;
 extern uint32_t instructions; 
-
-extern uint16_t fake6502_memaccess_address;
-extern uint8_t fake6502_memaccess_data;
-extern uint8_t fake6502_memaccess_mode;
+// 0: running, 1: stopped, 2: step
+extern uint8_t fake6502_running_status;
 
 #define FLAG_CARRY     0x01
 #define FLAG_ZERO      0x02

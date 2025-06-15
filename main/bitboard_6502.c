@@ -10,71 +10,15 @@
 #include "esp_task_wdt.h"
 
 #include "fake6502.h"
+#include "fakemem.h"
 #include "info_display.h"
 #include "command_handler.h"
+#include "p_slip.h"
 
 //-----------------------------------------------------------------------------
-uint8_t break_flag = 0; // Global variable to track the break flag
-uint8_t fakemem[1<<16]; // Simulated memory for the 6502 CPU
+const uint16_t EXEC_START = 0x8000;
+uint8_t fake6502_running_status;
 
-// addresses between 0xFE00 and 0xFEFF are reserved for callable memory
-fakemem_callable_t fakemem_callable[256];
-
-
-uint16_t fake6502_memaccess_address;
-uint8_t fake6502_memaccess_data;
-uint8_t fake6502_memaccess_mode;
-
-const uint16_t EXEC_START = 0xE000;
-//-----------------------------------------------------------------------------
-uint8_t read6502(uint16_t addr){
-  // Debugging output
-  fake6502_memaccess_mode = 1;
-  uint8_t return_data = fakemem[addr]; // Default return data from memory
-  fake6502_memaccess_address = addr; // Update display with memory address being read
-  // Handle callable memory reads
-  
-  if((addr & 0xff00)  == 0xFE00){
-    if(fakemem_callable[addr & 0xFF].read != 0){
-
-      return_data = fakemem_callable[addr & 0xFF].read(addr);
-      fake6502_memaccess_data = return_data; // Update display with memory data read  
-      return return_data; // Placeholder for read function
-    }
-  }
-  // Handle hardware interrupt vectors
-  switch(addr) {
-    case 0xFFFE: // IRQ/BRK vector (low byte)
-    case 0xFFFF: // IRQ/BRK vector (high byte)
-      break_flag = 1; // Set break flag when IRQ/BRK vector is read
-      return_data = 0x00;
-      break;
-  }
-  fake6502_memaccess_data = return_data; // Update display with memory data read  
-  return return_data; // Placeholder for read function
-}
-//-----------------------------------------------------------------------------
-void write6502(uint16_t addr, uint8_t byte)
-{
-  // Handle callable memory reads
-  if((addr & 0xff00)  == 0xFE00){
-    if(fakemem_callable[addr & 0xFF].write != 0){
-      fakemem_callable[addr & 0xFF].write(addr, byte);
-    }
-  }
-  fake6502_memaccess_mode = 2;
-  fake6502_memaccess_address = addr; // Update display with memory address being written
-  fake6502_memaccess_data = byte; // Update display with memory data written
-  fakemem[addr] = byte; // Write to fake memory  
-}
-
-//-----------------------------------------------------------------------------
-// Initialize the 6502 Memory
-void fakemem_init(){
-  memset(fakemem, 0, sizeof(fakemem)); // Initialize fake memory
-  fakemem[0xFFFC] = EXEC_START & 0xFF; // Set reset vector low byte
-  fakemem[0xFFFD] = (EXEC_START >> 8) & 0xFF; // Set reset vector high byt
-}
 //-----------------------------------------------------------------------------
 void io_init(){
   // Initialize the IO Buttons and Leds
@@ -102,8 +46,7 @@ void io_task(void *pvParameters) {
     if(!gpio_get_level(GPIO_NUM_0)) {
       //printf("Resetting 6502 CPU...\n");
       reset6502(); // Reset the CPU state
-      clearinterrupt(); // Clear the interrupt flag
-      break_flag = 0; // Clear the break flag
+      *fake6502_status = FLAG_CONSTANT;
       while(!gpio_get_level(GPIO_NUM_0)){
         vTaskDelay(pdMS_TO_TICKS(250)); 
       }
@@ -111,7 +54,6 @@ void io_task(void *pvParameters) {
     vTaskDelay(pdMS_TO_TICKS(150)); // Adjust delay as needed
   }
 }
-
 //-----------------------------------------------------------------------------
 void io_write(uint16_t addr, uint8_t byte) {
   // Handle IO write operations
@@ -129,7 +71,11 @@ void log_perf_task(void *pvParameters) {
   static uint32_t old_instructions = 0;
   while(1) {
     // Log performance metrics every second
-    printf("6502 CPU Speed: %dKips\n", (int)((instructions - old_instructions)/1000));
+    char text[32];
+    sprintf(text, "6502 CPU Speed: %dKips\n", (int)((instructions - old_instructions)/1000));
+    serial_send_slip_byte(CMD_LOG);
+    serial_send_slip_bytes((uint8_t *)text, strlen(text)); // Send log message
+    serial_send_slip_end();
     old_instructions = instructions; // Update old instruction count
     vTaskDelay(pdMS_TO_TICKS(1000)); // Log every second
   }
@@ -144,6 +90,7 @@ const uint8_t program[] = {
     0x85, 0x02, // STA $02
     0xA9, 0x04, // LDA #$04
     0x85, 0x03, // STA $03
+    0x00, // BRK (End of program)
     // jump to start
     0x4C, 0x00, 0xE0, 
     // write 1 to fe00 to turn on LED
@@ -174,8 +121,12 @@ const uint8_t program[] = {
 //-----------------------------------------------------------------------------
 void app_main(void)
 {
+  // Initialize Everything
+  serial_init(); // Initialize serial communication
+  command_init(); // Initialize command handler
   io_init(); // Initialize IO for buttons and LEDs
-  fakemem_init(); // Initialize fake memory 
+  fakemem_init(EXEC_START); // Initialize fake memory
+
   //  Set up callable memory for IO operations
   fakemem_set_callable_write(0, &io_write);
   fakemem_set_callable_write(1, &delay_write);
@@ -212,13 +163,26 @@ void app_main(void)
     NULL, // Task handle
     1 // Core ID (0 for core 0)
   );
+  xTaskCreatePinnedToCore(
+    (TaskFunction_t)serial_task, // Task function
+    "serial_task", // Task name
+    2048, // Stack size
+    NULL, // Task parameters
+    3, // Priority
+    NULL, // Task handle
+    1 // Core ID (0 for core 0)
+  );
 
   // Reset the 6502 CPU before starting execution
   reset6502(); 
   while(1) {
-    if(break_flag){
+    if(fake6502_running_status == 1) {
       vTaskDelay(1); 
       continue; // Skip execution if break flag is set
+    }
+    if(fake6502_running_status == 2)
+    {
+      fake6502_running_status = 1;
     }
     step6502();
     if(instructions % 50000 == 0) {

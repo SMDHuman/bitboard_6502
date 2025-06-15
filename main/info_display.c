@@ -209,13 +209,13 @@ void idisplay_task(){
 		// Update Y Register
 		idisplay_update_block_value(block_y, *fake6502_y);
 		// Update Memory Access Address
-		idisplay_update_block_value(block_address, fake6502_memaccess_address);
+		idisplay_update_block_value(block_address, fakemem_access_address);
 		// Update Memory Access Data
-		idisplay_update_block_value(block_data, fake6502_memaccess_data);
+		idisplay_update_block_value(block_data, fakemem_access_data);
 		// Update Memory Access Read/Write
-		if(fake6502_memaccess_mode == 1) {
+		if(fakemem_access_mode == 1) {
 			idisplay_update_block_label(block_rw, "R");
-		} else if(fake6502_memaccess_mode == 2) {
+		} else if(fakemem_access_mode == 2) {
 			idisplay_update_block_label(block_rw, "W");
 		} else {
 			idisplay_update_block_label(block_rw, "-");

@@ -2,8 +2,9 @@
 #define SLIP_H
 
 //-----------------------------------------------------------------------------
-#include <cstdint>
-#include <cstddef>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 #include <string.h>
 
 //-----------------------------------------------------------------------------
@@ -13,7 +14,7 @@
 #define S_ESC_ESC 0xDD
 
 //-----------------------------------------------------------------------------
-struct slip_buffer_header_t
+typedef struct 
 {   
     uint32_t len;
     uint32_t size;
@@ -22,11 +23,12 @@ struct slip_buffer_header_t
     uint8_t esc_flag;
     uint8_t checksum_enable;
     uint8_t overflow;
-};
+}slip_buffer_header_t;
 
 //-----------------------------------------------------------------------------
-void slip_init(uint8_t *buffer, uint32_t size, uint8_t checksum_enable = true);
+void slip_init(uint8_t *buffer, uint32_t size, uint8_t checksum_enable);
 void slip_push(uint8_t *buffer, uint8_t data);
+void slip_push_all(uint8_t *buffer, uint8_t *data, uint32_t len);
 uint32_t slip_get_size(uint8_t *buffer);
 uint8_t *slip_get_buffer(uint8_t *buffer);
 void slip_reset(uint8_t *buffer);
@@ -86,6 +88,12 @@ uint8_t slip_is_ready(uint8_t *buffer);
         else{
             data_buffer[slip_buffer_header->len++] = data;
             slip_buffer_header->checksum += data+1;
+        }
+    }
+    //-----------------------------------------------------------------------------
+    void slip_push_all(uint8_t *buffer, uint8_t *data, uint32_t len){
+        for(uint32_t i = 0; i < len; i++){
+            slip_push(buffer, data[i]);
         }
     }
     //-----------------------------------------------------------------------------

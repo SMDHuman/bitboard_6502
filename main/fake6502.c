@@ -946,20 +946,3 @@ void hookexternal(void *funcptr) {
         callexternal = 1;
     } else callexternal = 0;
 }
-
-void fakemem_set_callable_read(uint16_t address, uint8_t (*read)(uint16_t)){
-  fakemem_callable[address].read = read;
-}
-void fakemem_set_callable_write(uint16_t address, void (*write)(uint16_t, uint8_t)){
-  fakemem_callable[address].write = write;
-}
-void fakemem_set_callable_read_block(uint16_t address, uint8_t size, uint8_t (*read)(uint16_t)){
-  for(int i = 0; i < size; i++){
-    fakemem_set_callable_read(address + i, read);
-  }
-}
-void fakemem_set_callable_write_block(uint16_t address, uint8_t size, void (*write)(uint16_t, uint8_t)){
-  for(int i = 0; i < size; i++){
-    fakemem_set_callable_write(address + i, write);
-  }
-}
