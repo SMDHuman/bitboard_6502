@@ -4,6 +4,7 @@
 //-----------------------------------------------------------------------------
 
 #include "fakemem.h"
+#include "fake6522.h"
 #include <string.h>
 
 //-----------------------------------------------------------------------------
@@ -27,8 +28,13 @@ uint8_t read6502(uint16_t addr){
   fakemem_access_mode = 1;
   uint8_t return_data = fakemem[addr]; // Default return data from memory
   fakemem_access_address = addr; // Update display with memory address being read
+  // Handle fake6522 access
+  if((addr & 0xff00)  == 0x6000){
+    return_data = fake6522_read(addr); // Call fake6522 access function
+    fakemem_access_data = return_data; // Update display with memory data read  
+    return return_data; // Placeholder for read function
+  }
   // Handle callable memory reads
-  
   if((addr & 0xff00)  == 0x7f00){
     if(fakemem_callables[addr & 0xFF].read != 0){
 
@@ -51,10 +57,22 @@ uint8_t read6502(uint16_t addr){
 //-----------------------------------------------------------------------------
 void write6502(uint16_t addr, uint8_t byte)
 {
+  // Handle fake6522 access
+  if((addr & 0xff00)  == 0x6000){
+    fakemem_access_mode = 2;
+    fakemem_access_address = addr; // Update display with memory address being written
+    fakemem_access_data = byte; // Update display with memory data written
+    fake6522_write(addr, byte); // Call fake6522 access function
+    return; // Exit after handling fake6522 access
+  }
   // Handle callable memory reads
   if((addr & 0xff00)  == 0x7F00){
     if(fakemem_callables[addr & 0xFF].write != 0){
+      fakemem_access_mode = 2;
+      fakemem_access_address = addr; // Update display with memory address being written
+      fakemem_access_data = byte; // Update display with memory data written
       fakemem_callables[addr & 0xFF].write(addr, byte);
+      return; // Call the write function if it exists
     }
   }
   fakemem_access_mode = 2;
