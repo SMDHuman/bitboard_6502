@@ -24,6 +24,8 @@
 #define COLOR3 0xEFEEEA // #EFEEEA
 #define COLOR4 0xFE7743 // #FE7743
 
+#define LED_GPIO 45 // GPIO for LED
+
 typedef struct {
 	char label[32]; 		// Text to display
 	int32_t value;      // Value to display (can be used for numbers)
@@ -37,5 +39,6 @@ extern array *idisplay_blocks;
 //-----------------------------------------------------------------------------
 void idisplay_init();
 void idisplay_task();
+void idsplay_blink_led(uint16_t delay_ms);
 
 #endif

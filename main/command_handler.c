@@ -10,6 +10,7 @@
 #include "esp_err.h"
 #include "fake6502.h"
 #include "fakemem.h"
+#include "info_display.h"
 #include "driver/uart.h"
 
 #define SLIP_IMPLEMENTATION
@@ -46,6 +47,11 @@ void command_parse(uint8_t *msg_data, uint32_t len){
         uint16_t addr = (data[0] | (data[1] << 8));
         memcpy(&fakemem[addr], data + 2, len - 2);
         res = ESP_OK;
+        //serial_send_slip_byte(CMD_LOG);
+        //uint8_t text[64];
+        //sprintf((char *)text, "Wrote %d bytes to address %04X\n", (int)(len - 2), addr);
+        //serial_send_slip_bytes(text, strlen((char *)text)); // Send log message
+        //serial_send_slip_end();
       }
     }
     break;
@@ -70,6 +76,7 @@ void command_parse(uint8_t *msg_data, uint32_t len){
   } else {
     serial_send_slip_byte(CMD_RSP_PONG);
   }
+  serial_send_slip_end();
 }
 //-----------------------------------------------------------------------------
 uint8_t serial_slip_buffer[1024]; // Buffer for SLIP data
@@ -100,6 +107,7 @@ void serial_task(void *pvParameters){
       // Process the received SLIP data
       slip_push_all(serial_slip_buffer, serial_buffer, len);
       if(slip_is_ready(serial_slip_buffer)){
+        idsplay_blink_led(100); // Blink LED to indicate command received
         uint32_t size = slip_get_size(serial_slip_buffer);
         uint8_t *data = slip_get_buffer(serial_slip_buffer);
         command_parse(data, size); // Parse the command

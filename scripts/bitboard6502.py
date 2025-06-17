@@ -17,6 +17,20 @@ CMD_START_EMU = 6
 CMD_STOP_EMU = 7
 CMD_STEP_EMU = 8
 
+def receive_cb():
+  while(dev.in_wait()):
+    data = dev.get()
+    tag, data = data[0], data[1:]
+    if(tag == CMD_RSP_ERROR):
+      print("Error: ", data)
+    elif(tag == CMD_RSP_PONG):
+      print("Pong received")
+    elif(tag == CMD_LOG):
+      dt = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+      print(f"[{dt}][Log]: ", data.decode('utf-8'), end = "")
+    else:
+      print("Unknown command received:", tag)
+
 # --------------------------------------------------------------------------
 if(__name__ == "__main__"):
   parser = argparse.ArgumentParser(description="BitBoard6502 Serial Interface")
@@ -35,6 +49,7 @@ if(__name__ == "__main__"):
   # --------------------------------------------------------------------------
 
   dev = Serial_SLIP(args.port, checksum_enable = False)
+  dev.set_receive_callback(receive_cb)
  
   match args.command:
     case "ping":
@@ -50,15 +65,25 @@ if(__name__ == "__main__"):
         sys.exit(1)
 
       print(f"Writing file '{args.file}' to memory at reset vector {hex(args.write_address)}...")
+      maxpacket_size = 256  # Maximum packet size for writing
       with open(args.file, "rb") as f:
-        dev.write(CMD_WRITE_MEM)
-        dev.write(struct.pack("H", args.write_address))  # Write write_address
+        i = 0
         while True:
-          data = f.read(512)  # Read up to 512 bytes
+          data = f.read(maxpacket_size)  # Read up to 512 bytes
           if not data:
             break
+          # if data full of 0, dont send it
+          if all(byte == 0 for byte in data):
+            #print(f"Skipping writing {len(data)} bytes at address {hex(args.write_address + i)} (all zeros)")
+            i += maxpacket_size
+            continue
+          dev.write(CMD_WRITE_MEM)
+          print(f"Writing {len(data)} bytes to address {hex(args.write_address + i)}")
+          dev.write(struct.pack("H", args.write_address + i))  # Write write_address
           dev.write(data)  # Write file data
-        dev.write_end()
+          dev.write_end()
+          i += maxpacket_size
+          time.sleep(0.5)  # Sleep to avoid overwhelming the device
     case "start":
       print("Starting emulator...")
       dev.write(CMD_START_EMU)
@@ -80,16 +105,5 @@ if(__name__ == "__main__"):
       dev.write(CMD_STEP_EMU)
       dev.write_end()
     # Check for incoming data
-    if(dev.in_wait()):
-      data = dev.get()
-      tag, data = data[0], data[1:]
-      if(tag == CMD_RSP_ERROR):
-        print("Error: ", data)
-      elif(tag == CMD_RSP_PONG):
-        print("Pong received")
-      elif(tag == CMD_LOG):
-        dt = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        print(f"[{dt}][Log]: ", data.decode('utf-8'), end = "")
-      else:
-        print("Unknown command received:", tag)
+    
     time.sleep(0.1)

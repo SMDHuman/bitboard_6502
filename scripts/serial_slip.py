@@ -20,6 +20,15 @@ class Serial_SLIP(Protocol):
     self.serial_thread = ReaderThread(self.serial, self._self_)
     self.serial_thread.start()
 
+    self.receive_callback = None
+
+  def set_receive_callback(self, callback):
+    """
+    Set a callback function to be called when data is received.
+    The callback should accept a single argument, which will be the received data as a bytearray.
+    """
+    self.receive_callback = callback
+
   def _self_(self):
     return self
   # Called when data is received By Serial.ReaderThread
@@ -84,6 +93,9 @@ class Serial_SLIP(Protocol):
           return
         self.buffer = self.buffer[:-4]
       self.packages.append(bytearray(self.buffer))
+      if self.receive_callback is not None:
+        # Call the receive callback with the received data
+        self.receive_callback()
       self.reset_buffer()
     #...
     else:

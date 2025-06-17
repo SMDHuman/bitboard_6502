@@ -4,6 +4,7 @@
 //-----------------------------------------------------------------------------
 #include "info_display.h"
 #include "esp_log.h"
+#include "driver/gpio.h"
 #define P_ARRAY_IMPLEMENTATION
 #include "p_array.h"
 //-----------------------------------------------------------------------------
@@ -138,6 +139,16 @@ void idisplay_update_block_label(uint8_t index, const char *label) {
 //-----------------------------------------------------------------------------
 // Initializes the information display module
 void idisplay_init(){
+	// Initialize the Led
+	gpio_config_t io_conf = {
+	.pin_bit_mask = (1ULL << LED_GPIO), // GPIO for LED
+			.mode = GPIO_MODE_OUTPUT,
+			.pull_up_en = GPIO_PULLUP_DISABLE,
+			.pull_down_en = GPIO_PULLDOWN_DISABLE,
+	  	.intr_type = GPIO_INTR_DISABLE
+	};
+	gpio_config(&io_conf); // Configure GPIO for LED
+	// create the array for display blocks
 	idisplay_blocks = array_create(32, sizeof(idisplay_block_t));
 	// Initialize the display
 	spi_master_init(&dev, CONFIG_MOSI_GPIO, 
@@ -233,4 +244,9 @@ void idisplay_task(){
     vTaskDelay(1); 
 	}
 }
-
+//-----------------------------------------------------------------------------
+void idsplay_blink_led(uint16_t delay_ms){
+ 	gpio_set_level(LED_GPIO, 1); // Set LED state
+ 	vTaskDelay(delay_ms / portTICK_PERIOD_MS); // Delay for specified time
+	gpio_set_level(LED_GPIO, 0); // Turn off LED after blinking
+}
