@@ -35,7 +35,7 @@ uint8_t read6502(uint16_t addr){
     return return_data; // Placeholder for read function
   }
   // Handle callable memory reads
-  if((addr & 0xff00)  == 0x7f00){
+  if((addr & 0xff00)  == FAKEMEM_CALLABLE_START){
     if(fakemem_callables[addr & 0xFF].read != 0){
 
       return_data = fakemem_callables[addr & 0xFF].read(addr);
@@ -66,7 +66,7 @@ void write6502(uint16_t addr, uint8_t byte)
     return; // Exit after handling fake6522 access
   }
   // Handle callable memory reads
-  if((addr & 0xff00)  == 0x7F00){
+  if((addr & 0xff00)  == FAKEMEM_CALLABLE_START){
     if(fakemem_callables[addr & 0xFF].write != 0){
       fakemem_access_mode = 2;
       fakemem_access_address = addr; // Update display with memory address being written

@@ -14,7 +14,8 @@ typedef struct {
   void (*write)(uint16_t address, uint8_t value); // Function pointer for writing memory
 } fakemem_callable_t;
 
-// addresses between 0xFE00 and 0xFEFF are reserved for callable memory
+// addresses between 0xF000 and 0xF0FF are reserved for callable memory
+#define FAKEMEM_CALLABLE_START 0xF000
 extern fakemem_callable_t fakemem_callables[];
 extern uint8_t fakemem[]; // Simulated memory for the 6502 CPU
 

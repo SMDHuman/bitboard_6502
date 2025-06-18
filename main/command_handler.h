@@ -18,6 +18,7 @@ typedef enum{
     CMD_START_EMU,
     CMD_STOP_EMU,
     CMD_STEP_EMU,
+    CMD_GET_INST_COUNT,
 } CMD_PACKET_TYPE_E;
 
 //-----------------------------------------------------------------------------

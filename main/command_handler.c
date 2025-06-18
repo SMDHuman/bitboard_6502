@@ -67,6 +67,13 @@ void command_parse(uint8_t *msg_data, uint32_t len){
     {
       fake6502_running_status = 2; // Set running status to 2 for stepping
     }break;
+    case CMD_GET_INST_COUNT:
+    {
+      uint32_t inst_count = instructions; // Get the current instruction count
+      serial_send_slip_byte(CMD_GET_INST_COUNT); // Send log command
+      serial_send_slip_bytes((uint8_t *)&inst_count, sizeof(inst_count)); // Send instruction count
+      serial_send_slip_end(); // End the SLIP message
+    }break;
     default:
       res = ESP_ERR_INVALID_ARG; // Invalid command
     break;

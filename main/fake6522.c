@@ -22,7 +22,7 @@ static const uint64_t portb_gpio_nums[] = {
 };
 
 //-----------------------------------------------------------------------------
-static void io_port_write_direction(uint16_t addr, uint8_t byte, uint64_t *port_gpio_nums){
+static void io_port_write_direction(uint16_t addr, uint8_t byte, const uint64_t *port_gpio_nums){
   uint64_t port_gpio_out_mask = 0;
   uint64_t port_gpio_in_mask = 0;
   // Create a mask for PORTA GPIOs
@@ -52,7 +52,7 @@ static void io_port_write_direction(uint16_t addr, uint8_t byte, uint64_t *port_
   gpio_config(&out_config); // Configure PORTA GPIOs as output
 }
 //-----------------------------------------------------------------------------
-static void io_port_write_values(uint16_t addr, uint8_t byte, uint64_t *port_gpio_nums) {
+static void io_port_write_values(uint16_t addr, uint8_t byte, const uint64_t *port_gpio_nums) {
   // Write values to PORT GPIOs
   for(int i = 0; i < 8; i++) {
     if(byte & (1 << i)) {
@@ -63,7 +63,7 @@ static void io_port_write_values(uint16_t addr, uint8_t byte, uint64_t *port_gpi
   }
 }
 //-----------------------------------------------------------------------------
-static uint8_t io_port_read_values(uint16_t addr, uint64_t *port_gpio_nums) {
+static uint8_t io_port_read_values(uint16_t addr, const uint64_t *port_gpio_nums) {
   uint8_t value = 0;
   // Read values from PORTA GPIOs
   for(int i = 0; i < 8; i++) {

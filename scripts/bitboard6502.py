@@ -16,10 +16,15 @@ CMD_WRITE_MEM = 5
 CMD_START_EMU = 6
 CMD_STOP_EMU = 7
 CMD_STEP_EMU = 8
+CMD_GET_INST_COUNT = 9
 
+last_inst_count = 0
 def receive_cb():
+  global last_inst_count
   while(dev.in_wait()):
     data = dev.get()
+    if(len(data) == 0):
+      continue
     tag, data = data[0], data[1:]
     if(tag == CMD_RSP_ERROR):
       print("Error: ", data)
@@ -28,6 +33,10 @@ def receive_cb():
     elif(tag == CMD_LOG):
       dt = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
       print(f"[{dt}][Log]: ", data.decode('utf-8'), end = "")
+    elif(tag == CMD_GET_INST_COUNT):
+      inst_count = struct.unpack("<I", data)[0]
+      print(f"Instruction per second: {inst_count - last_inst_count} (Total: {inst_count})")
+      last_inst_count = inst_count
     else:
       print("Unknown command received:", tag)
 
@@ -98,6 +107,7 @@ if(__name__ == "__main__"):
       dev.write_end()
   
   #...
+  last_inst_count_time = 0
   while(1):
     # Check if the command is "step" to allow stepping through the emulator
     if(args.command == "step"):
@@ -105,5 +115,10 @@ if(__name__ == "__main__"):
       dev.write(CMD_STEP_EMU)
       dev.write_end()
     # Check for incoming data
+
+    if (time.time() - last_inst_count_time > 1 and 1):
+      dev.write(CMD_GET_INST_COUNT)
+      dev.write_end()
+      last_inst_count_time = time.time()
     
     time.sleep(0.1)
